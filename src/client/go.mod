@@ -5,12 +5,12 @@ go 1.25.2
 replace github.com/SamW94/get-lyrics/tracks => ../tracks
 
 require (
-	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/SamW94/get-lyrics/tracks v0.0.0-00010101000000-000000000000
 	github.com/gocolly/colly v1.2.0
 )
 
 require (
+	github.com/PuerkitoBio/goquery v1.11.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/antchfx/htmlquery v1.3.6 // indirect
 	github.com/antchfx/xmlquery v1.5.0 // indirect
@@ -24,7 +24,7 @@ require (
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/protobuf v1.26.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 )
 
 require (
