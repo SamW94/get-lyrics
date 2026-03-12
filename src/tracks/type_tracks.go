@@ -5,7 +5,8 @@ type FilePath struct {
 }
 
 type Track struct {
-	Artist string
-	Title  string
-	Lyrics string
+	Artist    string
+	Title     string
+	Lyrics    string
+	LyricsURL string
 }
