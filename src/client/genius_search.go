@@ -63,7 +63,7 @@ func processSearchResponse(geniusSearchResult GeniusSearchResult, track tracks.T
 func (c *Client) GeniusSearch(track tracks.Track) (lyricsURL LyricsURL, err error) {
 	searchTerm := fmt.Sprintf("%v %v", track.Artist, track.Title)
 	url := baseURL + "/search"
-	request, err := constructHTTPRequest(url, searchTerm)
+	request, err := constructHTTPRequestSearch(url, searchTerm)
 	if err != nil {
 		return LyricsURL{}, fmt.Errorf("Error constructing HTTP request\n: %v\n", err)
 	}
@@ -113,6 +113,7 @@ func (c *Client) GeniusSearch(track tracks.Track) (lyricsURL LyricsURL, err erro
 
 func (c *Client) GeniusSearchConcurrent(trackList []tracks.Track) (successful []tracks.Track, failed []string) {
 	var waitGroup sync.WaitGroup
+	var mutex sync.Mutex
 	jobs := make(chan tracks.Track)
 	workerCount := 5
 	ticker := time.NewTicker(200 * time.Millisecond)
@@ -133,11 +134,16 @@ func (c *Client) GeniusSearchConcurrent(trackList []tracks.Track) (successful []
 				lyricsURL, err := c.GeniusSearch(track)
 				if err != nil {
 					log.Printf("Error searching for lyrics:\n %v\n", err)
+					mutex.Lock()
 					trackArtistTitleFailed = append(trackArtistTitleFailed, fmt.Sprintf("%v - %v", track.Artist, track.Title))
+					mutex.Unlock()
 					continue
 				}
 				track.LyricsURL = lyricsURL.LyricsURL
+
+				mutex.Lock()
 				tracksSuccessful = append(tracksSuccessful, track)
+				mutex.Unlock()
 
 			}
 		}(worker)

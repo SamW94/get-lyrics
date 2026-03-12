@@ -28,13 +28,18 @@ func main() {
 
 	webClient := client.NewClient(time.Second * 5)
 
-	tracksSuccessful, trackArtistTitleFailed := webClient.GeniusSearchConcurrent(tracksList)
+	tracksSearchSuccessful, tracksSearchFailed := webClient.GeniusSearchConcurrent(tracksList)
+	tracksLyricsSuccessful, trackLyricsFailed := webClient.ScrapeLyricsConcurrent(tracksSearchSuccessful)
 
-	for _, trackArtistTitle := range trackArtistTitleFailed {
+	for _, track := range tracksLyricsSuccessful {
+		fmt.Printf("%v\n", track)
+	}
+
+	for _, trackArtistTitle := range tracksSearchFailed {
 		fmt.Printf("Failed to find any good hits when searching for %v\n", trackArtistTitle)
 	}
 
-	for _, track := range tracksSuccessful {
-		fmt.Printf("%v\n", track)
+	for _, trackArtistTitle := range trackLyricsFailed {
+		fmt.Printf("Failed to scrape lyrics for %v\n", trackArtistTitle)
 	}
 }
