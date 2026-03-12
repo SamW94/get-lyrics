@@ -2,15 +2,12 @@ package tracks
 
 import (
 	"fmt"
-	"html"
 	"io/fs"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 
-	"github.com/PuerkitoBio/goquery"
-	"github.com/gocolly/colly"
 	"go.senan.xyz/taglib"
 )
 
@@ -18,13 +15,16 @@ func createTrackObject(mp3 string) (Track, error) {
 
 	tags, err := taglib.ReadTags(mp3)
 	if err != nil {
-		fmt.Printf("Error reading MP3 tags from file %v: %v", mp3, err)
-		return Track{}, err
+		return Track{}, fmt.Errorf("Error reading MP3 tags from file %v: %v", mp3, err)
 	}
 
+	var lyrics string
 	artist := tags[taglib.Artist][0]
 	title := tags[taglib.Title][0]
-	lyrics := tags[taglib.Lyrics][0]
+	if len(tags[taglib.Lyrics]) != 0 {
+		lyrics = tags[taglib.Lyrics][0]
+	}
+	lyrics = ""
 
 	track := Track{
 		Artist: artist,
@@ -48,7 +48,7 @@ func createTrackObjectsConcurrently(mp3s []string) ([]Track, error) {
 			for mp3 := range jobs {
 				track, err := createTrackObject(mp3)
 				if err != nil {
-					fmt.Printf("Error creating track object for %v: %v", mp3, err)
+					fmt.Printf("Error creating track object for %v\n: %v\n", mp3, err)
 				}
 				trackObjects <- track
 			}
@@ -80,7 +80,7 @@ func getMp3s(directory string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() && strings.HasSuffix(path, ".mp3") && !strings.Contains(path, "Various Artists") {
+		if !d.IsDir() && strings.HasSuffix(path, ".mp3") && !strings.Contains(path, "Essential Mix") {
 			mp3s = append(mp3s, path)
 		}
 		return nil
@@ -89,14 +89,14 @@ func getMp3s(directory string) ([]string, error) {
 	return mp3s, err
 }
 
-func ReadDirectoryRecursively(directory string) {
+func ListTracksForMP3s(directory string) ([]Track, error) {
 	fmt.Printf("Finding MP3 files in the %v directory and its subdirectories, please wait...\n", directory)
 	mp3s, err := getMp3s(directory)
 	if err != nil {
-		fmt.Printf("Error retrieving MP3s from directory: %v", err)
+		return nil, fmt.Errorf("Error retrieving MP3s from directory\n: %v\n", err)
 	}
 	if len(mp3s) == 0 {
-		fmt.Println("No MP3 files found after searching directory recursively.")
+		return nil, fmt.Errorf("No MP3 files found after searching directory recursively.")
 	}
 
 	fmt.Printf("%d MP3 files found in directory %v\n", len(mp3s), directory)
@@ -105,50 +105,9 @@ func ReadDirectoryRecursively(directory string) {
 	}
 
 	tracks, err := createTrackObjectsConcurrently(mp3s)
-	for _, track := range tracks {
-
-		if track.Title == "Scarred" {
-			lyrics, err := getLyrics("https://www.last.fm/music/Dream+Theater/_/Scarred/+lyrics")
-			if err != nil {
-				fmt.Printf("%v", err)
-			}
-			fmt.Println(lyrics)
-		}
-	}
-
-}
-
-func getLyrics(url string) (string, error) {
-	c := colly.NewCollector(
-		colly.AllowedDomains("www.last.fm", "last.fm"),
-	)
-
-	var paragraphs []string
-
-	c.OnHTML("span.lyrics-body p.lyrics-paragraph", func(e *colly.HTMLElement) {
-		var builder strings.Builder
-
-		e.DOM.Contents().Each(func(i int, s *goquery.Selection) {
-			if goquery.NodeName(s) == "br" {
-				builder.WriteString("\n")
-			} else {
-				builder.WriteString(s.Text())
-			}
-		})
-
-		text := strings.TrimSpace(builder.String())
-		text = html.UnescapeString(text)
-
-		if text != "" {
-			paragraphs = append(paragraphs, text)
-		}
-	})
-
-	err := c.Visit(url)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("Error creating track objects from list of MP3s\n: %v\n", err)
 	}
 
-	lyrics := strings.Join(paragraphs, "\n\n")
-	return lyrics, nil
+	return tracks, nil
 }
