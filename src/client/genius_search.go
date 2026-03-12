@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,13 +35,21 @@ func bestMatchGeniusSearch(query string, options []LyricsURL) (LyricsURL, error)
 
 }
 
-func processSearchResponse(geniusSearchResult GeniusSearchResult) (potentialMatches []LyricsURL, err error) {
+func processSearchResponse(geniusSearchResult GeniusSearchResult, track tracks.Track) (potentialMatches []LyricsURL, err error) {
 
 	if len(geniusSearchResult.Response.Hits) == 0 {
-		return potentialMatches, fmt.Errorf("No hits found for search term")
+		return nil, fmt.Errorf("No hits found for search term")
 	}
 
 	for _, hit := range geniusSearchResult.Response.Hits {
+		if hit.Type != "song" {
+			continue
+		}
+
+		if !strings.Contains(hit.Result.PrimaryArtistNames, track.Artist) {
+			continue
+		}
+
 		lyricsURL := LyricsURL{
 			Artist:    hit.Result.PrimaryArtistNames,
 			Title:     hit.Result.TitleWithFeatured,
@@ -76,12 +86,23 @@ func (c *Client) GeniusSearch(track tracks.Track) (lyricsURL LyricsURL, err erro
 		return LyricsURL{}, fmt.Errorf("Error unmarshalling search results: %v\n", err)
 	}
 
-	potentialMatches, err := processSearchResponse(searchResp)
+	potentialMatches, err := processSearchResponse(searchResp, track)
 	if err != nil {
-		return LyricsURL{}, fmt.Errorf("Error processing search response: %v\n", err)
+		return LyricsURL{}, fmt.Errorf("Error processing search response for %v - %v:\n %v\n", track.Artist, track.Title, err)
 	}
 
-	bestMatch, err := bestMatchGeniusSearch(track.Title, potentialMatches)
+	var filteredPotentialMatches []LyricsURL
+	for _, potentialMatch := range potentialMatches {
+		if potentialMatch.Artist == track.Artist {
+			filteredPotentialMatches = append(filteredPotentialMatches, potentialMatch)
+		}
+	}
+
+	if len(filteredPotentialMatches) == 0 {
+		return LyricsURL{}, fmt.Errorf("No potential matches found for search term %v - %v", track.Artist, track.Title)
+	}
+
+	bestMatch, err := bestMatchGeniusSearch(track.Title, filteredPotentialMatches)
 
 	if err != nil {
 		return LyricsURL{}, fmt.Errorf("No matches found for %v - %v: %v\n", track.Artist, track.Title, err)
@@ -90,14 +111,15 @@ func (c *Client) GeniusSearch(track tracks.Track) (lyricsURL LyricsURL, err erro
 	return bestMatch, nil
 }
 
-func (c *Client) GeniusSearchConcurrent(trackList []tracks.Track) []LyricsURL {
+func (c *Client) GeniusSearchConcurrent(trackList []tracks.Track) (successful []tracks.Track, failed []string) {
 	var waitGroup sync.WaitGroup
 	jobs := make(chan tracks.Track)
 	workerCount := 5
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
-	var lyricsURLs []LyricsURL
+	var tracksSuccessful []tracks.Track
+	var trackArtistTitleFailed []string
 	for worker := 0; worker < workerCount; worker++ {
 		waitGroup.Add(1)
 
@@ -110,10 +132,12 @@ func (c *Client) GeniusSearchConcurrent(trackList []tracks.Track) []LyricsURL {
 
 				lyricsURL, err := c.GeniusSearch(track)
 				if err != nil {
-					fmt.Printf("Error searching for lyrics:\n %v\n", err)
+					log.Printf("Error searching for lyrics:\n %v\n", err)
+					trackArtistTitleFailed = append(trackArtistTitleFailed, fmt.Sprintf("%v - %v", track.Artist, track.Title))
 					continue
 				}
-				lyricsURLs = append(lyricsURLs, lyricsURL)
+				track.LyricsURL = lyricsURL.LyricsURL
+				tracksSuccessful = append(tracksSuccessful, track)
 
 			}
 		}(worker)
@@ -125,5 +149,5 @@ func (c *Client) GeniusSearchConcurrent(trackList []tracks.Track) []LyricsURL {
 	close(jobs)
 	waitGroup.Wait()
 
-	return lyricsURLs
+	return tracksSuccessful, trackArtistTitleFailed
 }
