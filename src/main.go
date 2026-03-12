@@ -24,13 +24,22 @@ func main() {
 	}
 
 	directory := inputArguments[1]
-	tracksList, err := tracks.ListTracksForMP3s(directory)
-	tracksWithoutLyricsList := tracks.FindTracksWithoutLyrics(tracksList)
+	tracksList, err := tracks.GetTracks(directory)
 
 	webClient := client.NewClient(time.Second * 5)
 
-	lyricsURLs := webClient.GeniusSearchConcurrent(tracksWithoutLyricsList)
-	for _, lyricsURL := range lyricsURLs {
-		fmt.Printf("%v\n", lyricsURL)
+	tracksSearchSuccessful, tracksSearchFailed := webClient.GeniusSearchConcurrent(tracksList)
+	tracksLyricsSuccessful, trackLyricsFailed := webClient.ScrapeLyricsConcurrent(tracksSearchSuccessful)
+
+	for _, track := range tracksLyricsSuccessful {
+		fmt.Printf("%v\n", track)
+	}
+
+	for _, trackArtistTitle := range tracksSearchFailed {
+		fmt.Printf("Failed to find any good hits when searching for %v\n", trackArtistTitle)
+	}
+
+	for _, trackArtistTitle := range trackLyricsFailed {
+		fmt.Printf("Failed to scrape lyrics for %v\n", trackArtistTitle)
 	}
 }

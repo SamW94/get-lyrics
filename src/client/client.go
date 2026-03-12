@@ -11,7 +11,7 @@ const (
 	baseURL = "https://api.genius.com"
 )
 
-func constructHTTPRequest(url, searchTerm string) (*http.Request, error) {
+func constructHTTPRequestSearch(url, searchTerm string) (*http.Request, error) {
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Error constructing new HTTP request to %v: %v", url, err)
