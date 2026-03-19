@@ -12,16 +12,6 @@ import (
 	"go.senan.xyz/taglib"
 )
 
-func findTracksWithoutLyrics(tracks []Track) (tracksNoLyrics []Track) {
-	for _, track := range tracks {
-		if track.Lyrics == "" {
-			tracksNoLyrics = append(tracksNoLyrics, track)
-		}
-	}
-
-	return tracksNoLyrics
-}
-
 func createTrackObject(mp3 string) (Track, error) {
 
 	tags, err := taglib.ReadTags(mp3)
@@ -142,8 +132,6 @@ func GetTracks(directory string) ([]Track, []string, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("Error creating track objects from list of MP3s\n: %v\n", err)
 	}
-
-	tracks = findTracksWithoutLyrics(tracks)
 
 	return tracks, failed, nil
 }
