@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -14,50 +16,108 @@ import (
 	"github.com/SamW94/get-lyrics/tracks"
 )
 
-func bestMatchGeniusSearch(query string, options []LyricsURL) (LyricsURL, error) {
-	titleOptionsMap := make(map[string]LyricsURL)
-	var titleOptionSlice []string
+var (
+	featRegex        = regexp.MustCompile(`(?i)\s*(feat\.?|ft\.?|featuring)\s+.*`)
+	versionRegex     = regexp.MustCompile(`(?i)\((rmx|remix|live|remaster.*?|demo|edit|version.*?)\)`)
+	bracketRegex     = regexp.MustCompile(`\(.*?\)`)
+	punctuationRegex = regexp.MustCompile(`[^\w\s]`)
+	whitespaceRegex  = regexp.MustCompile(`\s+`)
+)
 
-	for _, option := range options {
-		titleOptionsMap[option.Title] = option
-	}
+func normaliseSearchStrings(artist, title string) string {
 
-	for title := range titleOptionsMap {
-		titleOptionSlice = append(titleOptionSlice, title)
-	}
+	title = strings.ToLower(title)
 
-	bestMatchString, err := edlib.FuzzySearch(query, titleOptionSlice, edlib.Levenshtein)
-	if err != nil {
-		return LyricsURL{}, fmt.Errorf("Fuzzy search for best match failed: %v", err)
-	}
+	title = featRegex.ReplaceAllString(title, "")
+	title = versionRegex.ReplaceAllString(title, "")
+	title = bracketRegex.ReplaceAllString(title, "")
+	title = punctuationRegex.ReplaceAllString(title, "")
+	title = whitespaceRegex.ReplaceAllString(title, " ")
 
-	return titleOptionsMap[bestMatchString], nil
+	title = strings.TrimSpace(title)
 
+	return strings.ToLower(artist) + " " + title
 }
 
-func processSearchResponse(geniusSearchResult GeniusSearchResult, track tracks.Track) (potentialMatches []LyricsURL, err error) {
+func slugFromURL(url string) string {
+	slug := strings.TrimPrefix(url, "https://genius.com/")
+	slug = strings.TrimSuffix(slug, "-lyrics")
+
+	return slug
+}
+
+func makeSlug(artist, title string) string {
+	slug := normaliseSearchStrings(artist, title)
+	slug = strings.ReplaceAll(slug, " ", "-")
+
+	return slug
+}
+
+func bestMatchGeniusSearch(query tracks.Track, options []LyricsURL) (LyricsURL, error) {
+	querySlug := makeSlug(query.Artist, query.Title)
+
+	bestScore := math.MaxInt
+	var bestMatch LyricsURL
+
+	for _, option := range options {
+		slug := slugFromURL(option.LyricsURL)
+
+		if slug == querySlug {
+			return option, nil
+		}
+
+		if strings.Contains(slug, querySlug) || strings.Contains(querySlug, slug) {
+			return option, nil
+		}
+
+		score := edlib.LevenshteinDistance(querySlug, slug)
+
+		if score < bestScore {
+			bestScore = score
+			bestMatch = option
+		}
+	}
+
+	if bestScore > 12 {
+		return LyricsURL{}, fmt.Errorf("No acceptable slug match for %v - %v", query.Artist, query.Title)
+	}
+
+	return bestMatch, nil
+}
+
+func processSearchResponse(geniusSearchResult GeniusSearchResult) ([]LyricsURL, error) {
 
 	if len(geniusSearchResult.Response.Hits) == 0 {
 		return nil, fmt.Errorf("No hits found for search term")
 	}
 
-	for _, hit := range geniusSearchResult.Response.Hits {
+	var matches []LyricsURL
+
+	hits := geniusSearchResult.Response.Hits
+
+	if len(hits) > 5 {
+		hits = hits[:5]
+	}
+
+	for _, hit := range hits {
 		if hit.Type != "song" {
 			continue
 		}
 
-		if !strings.Contains(hit.Result.PrimaryArtistNames, track.Artist) {
+		if !strings.Contains(hit.Result.URL, "-lyrics") {
 			continue
 		}
 
-		lyricsURL := LyricsURL{
+		title := strings.TrimSpace(hit.Result.Title)
+
+		matches = append(matches, LyricsURL{
 			Artist:    hit.Result.PrimaryArtistNames,
-			Title:     hit.Result.TitleWithFeatured,
+			Title:     title,
 			LyricsURL: hit.Result.URL,
-		}
-		potentialMatches = append(potentialMatches, lyricsURL)
+		})
 	}
-	return potentialMatches, nil
+
+	return matches, nil
 }
 
 func (c *Client) GeniusSearch(track tracks.Track) (lyricsURL LyricsURL, err error) {
@@ -86,23 +146,16 @@ func (c *Client) GeniusSearch(track tracks.Track) (lyricsURL LyricsURL, err erro
 		return LyricsURL{}, fmt.Errorf("Error unmarshalling search results: %v\n", err)
 	}
 
-	potentialMatches, err := processSearchResponse(searchResp, track)
+	potentialMatches, err := processSearchResponse(searchResp)
 	if err != nil {
 		return LyricsURL{}, fmt.Errorf("Error processing search response for %v - %v:\n %v\n", track.Artist, track.Title, err)
 	}
 
-	var filteredPotentialMatches []LyricsURL
-	for _, potentialMatch := range potentialMatches {
-		if potentialMatch.Artist == track.Artist {
-			filteredPotentialMatches = append(filteredPotentialMatches, potentialMatch)
-		}
-	}
-
-	if len(filteredPotentialMatches) == 0 {
+	if len(potentialMatches) == 0 {
 		return LyricsURL{}, fmt.Errorf("No potential matches found for search term %v - %v", track.Artist, track.Title)
 	}
 
-	bestMatch, err := bestMatchGeniusSearch(track.Title, filteredPotentialMatches)
+	bestMatch, err := bestMatchGeniusSearch(track, potentialMatches)
 
 	if err != nil {
 		return LyricsURL{}, fmt.Errorf("No matches found for %v - %v: %v\n", track.Artist, track.Title, err)

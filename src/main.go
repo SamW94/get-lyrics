@@ -24,7 +24,7 @@ func main() {
 	}
 
 	directory := inputArguments[1]
-	tracksList, err := tracks.GetTracks(directory)
+	tracksList, failedMp3s, err := tracks.GetTracks(directory)
 
 	webClient := client.NewClient(time.Second * 5)
 
@@ -33,6 +33,10 @@ func main() {
 
 	for _, track := range tracksLyricsSuccessful {
 		fmt.Printf("%v\n", track)
+	}
+
+	for _, failedMp3 := range failedMp3s {
+		fmt.Printf("Failed to read the artist or title tag from mp3 file %v - is there a problem with the tag?", failedMp3)
 	}
 
 	for _, trackArtistTitle := range tracksSearchFailed {
