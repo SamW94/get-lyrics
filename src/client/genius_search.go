@@ -120,7 +120,7 @@ func processSearchResponse(geniusSearchResult GeniusSearchResult) ([]LyricsURL, 
 	return matches, nil
 }
 
-func (c *Client) GeniusSearch(track tracks.Track) (lyricsURL LyricsURL, err error) {
+func (c *Client) geniusSearch(track tracks.Track) (lyricsURL LyricsURL, err error) {
 	searchTerm := fmt.Sprintf("%v %v", track.Artist, track.Title)
 	url := baseURL + "/search"
 	request, err := constructHTTPRequestSearch(url, searchTerm)
@@ -184,7 +184,7 @@ func (c *Client) GeniusSearchConcurrent(trackList []tracks.Track) (successful []
 			for track := range jobs {
 				<-ticker.C
 
-				lyricsURL, err := c.GeniusSearch(track)
+				lyricsURL, err := c.geniusSearch(track)
 				if err != nil {
 					log.Printf("Error searching for lyrics:\n %v\n", err)
 					mutex.Lock()
