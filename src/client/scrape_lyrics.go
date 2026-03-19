@@ -11,7 +11,7 @@ import (
 	"github.com/gocolly/colly"
 )
 
-func (c *Client) ScrapeLyrics(track tracks.Track) (lyrics string, err error) {
+func (c *Client) scrapeLyrics(track tracks.Track) (lyrics string, err error) {
 	collyCollector := colly.NewCollector(
 		colly.AllowedDomains("www.genius.com", "genius.com"),
 	)
@@ -66,7 +66,7 @@ func (c *Client) ScrapeLyricsConcurrent(trackList []tracks.Track) (successful []
 			for track := range jobs {
 				<-ticker.C
 
-				lyrics, err := c.ScrapeLyrics(track)
+				lyrics, err := c.scrapeLyrics(track)
 				if err != nil {
 					log.Printf("Error scraping lyrics:\n %v\n", err)
 
