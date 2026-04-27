@@ -104,11 +104,11 @@ func processSearchResponse(geniusSearchResult GeniusSearchResult, artist string)
 			continue
 		}
 
-		if !strings.Contains(hit.Result.ArtistNames, artist) {
+		if !strings.Contains(strings.ToLower(hit.Result.ArtistNames), strings.ToLower(artist)) {
 			continue
 		}
 
-		if !strings.Contains(hit.Result.URL, "-lyrics") {
+		if !strings.Contains(hit.Result.URL, "-lyrics") && !strings.Contains(hit.Result.URL, "-annotated") {
 			continue
 		}
 
