@@ -9,60 +9,41 @@ import (
 	"strings"
 	"sync"
 
-	"go.senan.xyz/taglib"
+	"github.com/bogem/id3v2"
 )
-
-func findTracksWithoutLyrics(tracks []Track) (tracksNoLyrics []Track) {
-	for _, track := range tracks {
-		if track.Lyrics == "" {
-			tracksNoLyrics = append(tracksNoLyrics, track)
-		}
-	}
-
-	return tracksNoLyrics
-}
 
 func createTrackObject(mp3 string) (Track, error) {
 
-	tags, err := taglib.ReadTags(mp3)
+	tag, err := id3v2.Open(mp3, id3v2.Options{Parse: true})
 	if err != nil {
-		return Track{}, fmt.Errorf("Error reading MP3 tags from file %v: %v", mp3, err)
+		return Track{}, fmt.Errorf("Error opening file at %v:\n %v", mp3, err)
 	}
 
-	var lyrics string
-	var artist string
-	var title string
+	defer tag.Close()
 
-	if len(tags[taglib.Artist]) != 0 {
-		artist = tags[taglib.Artist][0]
-	} else {
+	artist := tag.Artist()
+	title := tag.Title()
+
+	if artist == "" {
 		return Track{}, fmt.Errorf("Error obtaining artist from tags for file %v - is there a problem with the tag?\n", mp3)
 	}
 
-	if len(tags[taglib.Title]) != 0 {
-		title = tags[taglib.Title][0]
-	} else {
+	if title == "" {
 		return Track{}, fmt.Errorf("Error obtaining title from tags for file %v - is there a problem with the tag?\n", mp3)
 	}
-
-	if len(tags[taglib.Lyrics]) != 0 {
-		lyrics = tags[taglib.Lyrics][0]
-	}
-	lyrics = ""
 
 	track := Track{
 		Path:   mp3,
 		Artist: artist,
 		Title:  title,
-		Lyrics: lyrics,
+		Lyrics: "",
 	}
-	fmt.Printf("%v\n", track)
 
 	return track, nil
 
 }
 
-func createTrackObjectsConcurrently(mp3s []string) (successful []Track, failed []string, err error) {
+func createTrackObjectsConcurrently(mp3s []string) (successful []Track, failed []string) {
 	var waitGroup sync.WaitGroup
 	var mutex sync.Mutex
 	jobs := make(chan string, len(mp3s))
@@ -73,7 +54,7 @@ func createTrackObjectsConcurrently(mp3s []string) (successful []Track, failed [
 	var tracks []Track
 	var failedMp3s []string
 
-	for range cpuWorkers {
+	for i := 0; i < cpuWorkers; i++ {
 		waitGroup.Go(func() {
 			for mp3 := range jobs {
 				track, err := createTrackObject(mp3)
@@ -104,7 +85,7 @@ func createTrackObjectsConcurrently(mp3s []string) (successful []Track, failed [
 		mutex.Unlock()
 	}
 
-	return tracks, failedMp3s, nil
+	return tracks, failedMp3s
 }
 
 func getMp3s(directory string) ([]string, error) {
@@ -114,7 +95,7 @@ func getMp3s(directory string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() && strings.HasSuffix(path, ".mp3") && !strings.Contains(path, "Essential Mix") {
+		if !d.IsDir() && strings.HasSuffix(path, ".mp3") {
 			mp3s = append(mp3s, path)
 		}
 		return nil
@@ -125,25 +106,16 @@ func getMp3s(directory string) ([]string, error) {
 
 func GetTracks(directory string) ([]Track, []string, error) {
 	fmt.Printf("Finding MP3 files in the %v directory and its subdirectories, please wait...\n", directory)
-	mp3s, err := getMp3s(directory)
+	mp3Paths, err := getMp3s(directory)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Error retrieving MP3s from directory\n: %v\n", err)
 	}
-	if len(mp3s) == 0 {
+	if len(mp3Paths) == 0 {
 		return nil, nil, fmt.Errorf("No MP3 files found after searching directory recursively.")
 	}
 
-	fmt.Printf("%d MP3 files found in directory %v\n", len(mp3s), directory)
-	for _, mp3 := range mp3s {
-		fmt.Printf("%v\n", mp3)
-	}
+	fmt.Printf("%d MP3 files found in directory %v\n", len(mp3Paths), directory)
 
-	tracks, failed, err := createTrackObjectsConcurrently(mp3s)
-	if err != nil {
-		return nil, nil, fmt.Errorf("Error creating track objects from list of MP3s\n: %v\n", err)
-	}
-
-	tracks = findTracksWithoutLyrics(tracks)
-
+	tracks, failed := createTrackObjectsConcurrently(mp3Paths)
 	return tracks, failed, nil
 }

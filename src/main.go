@@ -31,8 +31,11 @@ func main() {
 	tracksSearchSuccessful, tracksSearchFailed := webClient.GeniusSearchConcurrent(tracksList)
 	tracksLyricsSuccessful, trackLyricsFailed := webClient.ScrapeLyricsConcurrent(tracksSearchSuccessful)
 
-	for _, track := range tracksLyricsSuccessful {
-		fmt.Printf("%v\n", track)
+	for _, t := range tracksLyricsSuccessful {
+		err = tracks.TagMp3(t)
+		if err != nil {
+			fmt.Printf("Failed to tag MP3 at %v: %v", t.Path, err)
+		}
 	}
 
 	for _, failedMp3 := range failedMp3s {
@@ -46,4 +49,6 @@ func main() {
 	for _, trackArtistTitle := range trackLyricsFailed {
 		fmt.Printf("Failed to scrape lyrics for %v\n", trackArtistTitle)
 	}
+
+	fmt.Println("Completed!")
 }

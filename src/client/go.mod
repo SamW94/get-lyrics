@@ -15,6 +15,7 @@ require (
 	github.com/antchfx/htmlquery v1.3.6 // indirect
 	github.com/antchfx/xmlquery v1.5.0 // indirect
 	github.com/antchfx/xpath v1.3.6 // indirect
+	github.com/bogem/id3v2 v1.2.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -27,8 +28,4 @@ require (
 	google.golang.org/protobuf v1.33.0 // indirect
 )
 
-require (
-	github.com/hbollon/go-edlib v1.7.0
-	github.com/tetratelabs/wazero v1.10.1 // indirect
-	go.senan.xyz/taglib v0.11.1 // indirect
-)
+require github.com/hbollon/go-edlib v1.7.0
