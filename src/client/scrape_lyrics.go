@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +43,9 @@ func (c *Client) scrapeLyrics(track tracks.Track) (lyrics string, err error) {
 	if idx := strings.Index(lyrics, "["); idx != -1 {
 		lyrics = lyrics[idx:]
 	}
+
+	cleanPrefixRegex := regexp.MustCompile(`^\d+\s+.*?Lyrics\s*`)
+	lyrics = cleanPrefixRegex.ReplaceAllString(lyrics, "")
 
 	return lyrics, nil
 }

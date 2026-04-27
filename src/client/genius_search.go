@@ -85,7 +85,7 @@ func bestMatchGeniusSearch(query tracks.Track, options []LyricsURL) (LyricsURL, 
 	return bestMatch, nil
 }
 
-func processSearchResponse(geniusSearchResult GeniusSearchResult) ([]LyricsURL, error) {
+func processSearchResponse(geniusSearchResult GeniusSearchResult, artist string) ([]LyricsURL, error) {
 
 	if len(geniusSearchResult.Response.Hits) == 0 {
 		return nil, fmt.Errorf("No hits found for search term")
@@ -101,6 +101,10 @@ func processSearchResponse(geniusSearchResult GeniusSearchResult) ([]LyricsURL, 
 
 	for _, hit := range hits {
 		if hit.Type != "song" {
+			continue
+		}
+
+		if !strings.Contains(hit.Result.ArtistNames, artist) {
 			continue
 		}
 
@@ -146,7 +150,7 @@ func (c *Client) geniusSearch(track tracks.Track) (lyricsURL LyricsURL, err erro
 		return LyricsURL{}, fmt.Errorf("Error unmarshalling search results: %v\n", err)
 	}
 
-	potentialMatches, err := processSearchResponse(searchResp)
+	potentialMatches, err := processSearchResponse(searchResp, track.Artist)
 	if err != nil {
 		return LyricsURL{}, fmt.Errorf("Error processing search response for %v - %v:\n %v\n", track.Artist, track.Title, err)
 	}
